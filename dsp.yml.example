@@ -6,7 +6,6 @@ devices:
   capture:
     type: Alsa
     device: "hw:CARD=UAC2Gadget,DEV=0"
-    #device: "plug:uac2_softvol"
     channels: 2
     format: S32LE
     link_volume_control: "PCM Capture Volume"
@@ -18,34 +17,65 @@ devices:
     channels: 4
     format: S16LE
 
+filters:
+  hp_80hz_12db:
+    type: Biquad
+    parameters:
+      type: Highpass
+      freq: 80
+      q: 0.7071068   # 2nd-order Butterworth (~12 dB/oct)
+
+  lp_80hz_12db:
+    type: Biquad
+    parameters:
+      type: Lowpass
+      freq: 80
+      q: 0.7071068   # 2nd-order Butterworth (~12 dB/oct)
+
 mixers:
-  mirror_2_to_4:
+  main_plus_sub_2to4:
     channels:
       in: 2
       out: 4
     mapping:
-      # out0 = in0
+      # Main speakers:
       - dest: 0
         sources:
           - channel: 0
             gain: 0.0
-      # out1 = in1
       - dest: 1
         sources:
           - channel: 1
             gain: 0.0
-      # out2 = in0
+
+      # Subwoofer (mono sum) -> codec ch2/ch3
+      # Use -6 dB per input for safe mono summing (avoids clipping when L and R correlate),
+      # then add extra -1 dB target => -7 dB each.
       - dest: 2
         sources:
           - channel: 0
-            gain: 0.0
-      # out3 = in1
+            gain: -7.0
+          - channel: 1
+            gain: -7.0
       - dest: 3
         sources:
+          - channel: 0
+            gain: -7.0
           - channel: 1
-            gain: 0.0
+            gain: -7.0
 
 pipeline:
+  # 2ch -> 4ch (main L/R + mono-sub duplicated to 2 codec channels)
   - type: Mixer
-    name: mirror_2_to_4
+    name: main_plus_sub_2to4
+
+  # High-pass mains (out0/out1)
+  - type: Filter
+    channels: [0, 1]
+    names: [hp_80hz_12db]
+
+  # Low-pass subs (out2/out3)
+  - type: Filter
+    channels: [2, 3]
+    names: [lp_80hz_12db]
 
