@@ -1,0 +1,29 @@
+# Overrides for usb_gadget.sh (sourced by bash).
+#
+# Install to: /etc/usb-gadget-uac2.conf
+#
+# Optional descriptor overrides:
+#UAC2_ID_VENDOR=0x1d6b
+#UAC2_ID_PRODUCT=0x0104
+#UAC2_BCD_USB=0x0200
+#UAC2_BCD_DEVICE=0x0100
+#UAC2_MANUFACTURER="Raspberry Pi"
+#UAC2_PRODUCT="RPi UAC2 Capture"
+#UAC2_SERIAL="1234567890"
+#UAC2_CONFIGURATION="UAC2 Capture"
+#UAC2_MAXPOWER=250
+#
+# Pick a specific UDC (optional). If unset, usb_gadget.sh uses the first entry in /sys/class/udc.
+#UAC2_UDC=fe980000.usb
+#
+# UAC2 capture parameters:
+# - c_chmask: channel mask (0x3 = stereo)
+# - c_srate: sample rate (e.g. 44100, 48000)
+# - c_ssize: sample size in bytes (e.g. 2=16-bit, 3=24-bit, 4=32-bit)
+UAC2_C_CHMASK=0x3
+UAC2_C_SRATE=44100
+UAC2_C_SSIZE=4
+UAC2_C_VOLUME_PRESENT=1
+UAC2_C_VOLUME_MIN=-10240
+UAC2_C_VOLUME_MAX=0
+UAC2_C_VOLUME_RES=256

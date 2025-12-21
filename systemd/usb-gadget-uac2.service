@@ -1,0 +1,16 @@
+[Unit]
+Description=USB Gadget UAC2 (capture)
+After=systemd-modules-load.service sys-kernel-config.mount
+Wants=sys-kernel-config.mount
+ConditionPathExists=/sys/kernel/config
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/usb-gadget-uac2.conf
+ExecStart=/usr/local/sbin/usb_gadget.sh --unbind_usb --reconfig_usb
+ExecStop=/usr/local/sbin/usb_gadget.sh --unbind_usb
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target

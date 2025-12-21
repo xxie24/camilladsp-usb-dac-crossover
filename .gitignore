@@ -1,0 +1,14 @@
+# User-/machine-specific config
+usb-gadget-uac2.conf
+dsp.yml
+
+# Generated outputs
+asound.conf.generated
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.pytest_cache/
+
