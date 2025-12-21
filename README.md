@@ -73,7 +73,23 @@ systemctl status --no-pager -l usb-gadget-uac2.service
 cat /sys/kernel/config/usb_gadget/uac2g/UDC
 ```
 
-### 4) Configure CamillaDSP to use your config and wait for the gadget
+### 4) Create the 2-DAC playback device (`convert4`)
+
+Generate and install `/etc/asound.conf` so CamillaDSP can play to two USB DACs as one 4-channel device:
+
+```bash
+./gen_asound_multi.py
+sudo cp ./asound.conf.generated /etc/asound.conf
+sudo reboot
+```
+
+After reboot:
+
+```bash
+aplay -L | grep convert4
+```
+
+### 5) Configure CamillaDSP to use your config and wait for the gadget
 
 This is done with a systemd drop-in override for `camilladsp.service`.
 
@@ -118,6 +134,8 @@ Notes:
  - If your service runs as a different user than `xxie`, update `WorkingDirectory=` and the config path accordingly.
 
 ## Create the 2-DAC playback device (`convert4`)
+
+If you already did **Quick Start step 4**, you can skip this section; it explains what the generated ALSA config does.
 
 To feed **two separate USB DACs** from one application (CamillaDSP), create a single 4-channel ALSA playback device. `gen_asound_multi.py` generates an `/etc/asound.conf` that exposes:
 
