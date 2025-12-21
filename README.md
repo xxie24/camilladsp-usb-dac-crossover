@@ -5,6 +5,38 @@ This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (ca
 - USB DAC A: main speakers (stereo)
 - USB DAC B: subwoofer (typically mono duplicated to L/R)
 
+```text
+          (USB audio from host PC / phone)
+                      |
+                      v
+        +-----------------------------+
+        | Raspberry Pi (UAC2 gadget)  |
+        |  Capture: hw:CARD=UAC2Gadget|
+        +-----------------------------+
+                      |
+                      v
+        +-----------------------------+
+        |         CamillaDSP          |
+        |  /etc/camilladsp/config.yml |
+        |  split: mains + sub         |
+        +-----------------------------+
+                      |
+                      v
+        +-----------------------------+
+        |   ALSA virtual device       |
+        |   "convert4" (4 channels)   |
+        |   from /etc/asound.conf     |
+        +-----------------------------+
+               |                 |
+          ch 0-1 (mains)    ch 2-3 (sub)
+               |                 |
+               v                 v
+        +-------------+   +-------------+
+        | USB DAC A   |   | USB DAC B   |
+        | Main L/R    |   | Sub (L/R)   |
+        +-------------+   +-------------+
+```
+
 Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 
 ## What’s Included
