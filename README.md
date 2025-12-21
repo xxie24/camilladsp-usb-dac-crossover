@@ -1,6 +1,9 @@
-# Raspberry Pi USB Gadget Audio (UAC2) + CamillaDSP
+# Raspberry Pi: USB Gadget Audio In → Dual USB DAC Out (Main + Sub) with CamillaDSP
 
-This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (capture device) and then starts **CamillaDSP** after the gadget is ready.
+This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (capture device) to receive audio from a host over USB, then uses **CamillaDSP** to process/split that audio and play it out through **two separate USB DACs**:
+
+- USB DAC A: main speakers (stereo)
+- USB DAC B: subwoofer (typically mono duplicated to L/R)
 
 Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 
@@ -9,12 +12,13 @@ Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 - `usb_gadget.sh`: Creates/configures the UAC2 gadget via `configfs` and binds it to a UDC.
 - `usb-gadget-uac2.conf.example`: Example overrides for the gadget (sample rate/format/channel mask, etc).
 - `systemd/usb-gadget-uac2.service`: Systemd oneshot unit template to configure the gadget at boot.
-- `dsp.yml.example`: Example CamillaDSP pipeline/config (copy to `dsp.yml` and customize).
-- `gen_asound_multi.py`: Generates an ALSA virtual output device by combining two stereo USB DACs into one 4-channel device (optional).
+- `dsp.yml.example`: Example CamillaDSP pipeline/config (install to `/etc/camilladsp/config.yml` and customize).
+- `gen_asound_multi.py`: Generates an ALSA virtual output device by combining two stereo USB DACs into one 4-channel device (`convert4`) for CamillaDSP.
 
 ## Prerequisites
 
 - Raspberry Pi with USB gadget-capable controller (typical on Pi Zero / Pi 4/5 USB-C gadget port setups).
+- Two USB DACs (one for mains, one for sub).
 - Kernel modules available: `libcomposite` (and `configfs` mounted at `/sys/kernel/config`).
 - `camilladsp` installed and a working `camilladsp.service` (or you will create one).
 - For `gen_asound_multi.py`: `python3` and `alsa-utils` (`aplay`).
@@ -47,7 +51,7 @@ sudo vi /etc/usb-gadget-uac2.conf
 ```
 
 Important settings:
-- `UAC2_C_SRATE`: Must match what your audio pipeline expects (example `dsp.yml` uses `48000`).
+- `UAC2_C_SRATE`: Must match what your audio pipeline expects (example `/etc/camilladsp/config.yml` uses `48000`).
 - `UAC2_C_SSIZE`: Sample size in bytes (`2`=16-bit, `3`=24-bit packed, `4`=32-bit).
 - `UAC2_C_CHMASK`: Channel mask (`0x3` = stereo).
 - `UAC2_UDC` (optional): Pin the UDC name instead of “first found”.
@@ -73,11 +77,12 @@ cat /sys/kernel/config/usb_gadget/uac2g/UDC
 
 This is done with a systemd drop-in override for `camilladsp.service`.
 
-First, copy the example config and adjust it:
+First, install the example config to a system-wide location and adjust it (recommended):
 
 ```bash
-cp ./dsp.yml.example ./dsp.yml
-vi ./dsp.yml
+sudo install -d /etc/camilladsp
+sudo install -m 0644 ./dsp.yml.example /etc/camilladsp/config.yml
+sudo vi /etc/camilladsp/config.yml
 ```
 
 1. Create/edit the drop-in:
@@ -96,7 +101,7 @@ Requires=usb-gadget-uac2.service
 [Service]
 WorkingDirectory=/home/xxie
 ExecStart=
-ExecStart=camilladsp -s camilladsp/statefile.yml -g-40 -o camilladsp/camilladsp.log -p 1234 /home/xxie/src/dsp.yml
+ExecStart=camilladsp -s camilladsp/statefile.yml -g-40 -o camilladsp/camilladsp.log -p 1234 /etc/camilladsp/config.yml
 ```
 
 3. Reload and restart:
@@ -108,13 +113,13 @@ systemctl status --no-pager -l camilladsp.service
 ```
 
 Notes:
-- Do **not** use `~` in systemd paths; use absolute paths like `/home/xxie/src/dsp.yml`.
+- Do **not** use `~` in systemd paths; use absolute paths like `/etc/camilladsp/config.yml`.
 - Do **not** add `-c` unless you want “check config and exit”. The config file is the positional `CONFIGFILE` argument.
  - If your service runs as a different user than `xxie`, update `WorkingDirectory=` and the config path accordingly.
 
-## Optional: Combine 2 USB DACs into 1 virtual ALSA device (`convert4`)
+## Create the 2-DAC playback device (`convert4`)
 
-If you have two separate stereo USB DACs but want a single 4-channel ALSA playback device (e.g. for CamillaDSP), `gen_asound_multi.py` generates an `/etc/asound.conf` that exposes:
+To feed **two separate USB DACs** from one application (CamillaDSP), create a single 4-channel ALSA playback device. `gen_asound_multi.py` generates an `/etc/asound.conf` that exposes:
 
 - `pcm.both`: raw 4ch “multi” device (two stereo slaves)
 - `pcm.convert4`: a `plug` wrapper that pins a common `rate` + `format` and is easy to use
@@ -137,7 +142,17 @@ speaker-test -D convert4 -c 4 -t sine
 How it works:
 - It lists playback devices from `aplay -l`, asks you to pick two card numbers, then probes each with `aplay --dump-hw-params`.
 - It chooses a common sample rate/format (prefers `48000`), then maps channels `0-1` to DAC A and `2-3` to DAC B.
-- In `dsp.yml`, set playback device to `convert4` (already shown in this repo).
+- In `/etc/camilladsp/config.yml`, set playback device to `convert4` (already shown in this repo).
+
+## Main/Sub Routing in CamillaDSP
+
+The usual channel convention with `convert4` is:
+- Channels `0-1` → USB DAC A (main L/R)
+- Channels `2-3` → USB DAC B (sub; often mono duplicated to L/R)
+
+In `/etc/camilladsp/config.yml` you typically:
+- Apply a high-pass to the main channels (0-1).
+- Create a mono sum from L/R, apply a low-pass, then duplicate it to channels 2 and 3.
 
 ## Common Pitfalls / Debugging
 
@@ -157,8 +172,11 @@ Two common causes:
 
 2) Sample-rate mismatch (very common)
 - Symptom: ALSA error like `snd_pcm_hw_params_set_rate ... Invalid argument (22)` then CamillaDSP exits.
-- Fix: ensure **gadget** `UAC2_C_SRATE` matches **CamillaDSP** `devices.samplerate`.
-  - Example: if `dsp.yml` uses `48000`, set `UAC2_C_SRATE=48000` in `/etc/usb-gadget-uac2.conf`, then:
+- Fix: ensure these all match:
+  - Gadget capture rate: `UAC2_C_SRATE` in `/etc/usb-gadget-uac2.conf`
+  - CamillaDSP rate: `devices.samplerate` in `/etc/camilladsp/config.yml`
+  - `convert4` rate: the pinned `rate` in `/etc/asound.conf` (generated by `gen_asound_multi.py`)
+  - Example: if you want `48000`, set `UAC2_C_SRATE=48000`, ensure `/etc/camilladsp/config.yml` uses `48000`, regenerate `/etc/asound.conf` if needed, then:
     ```bash
     sudo systemctl restart usb-gadget-uac2.service
     sudo systemctl restart camilladsp.service
