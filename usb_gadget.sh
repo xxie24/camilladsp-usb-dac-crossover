@@ -130,6 +130,9 @@ configure_gadget() {
   echo "${UAC2_ID_PRODUCT:-0x0104}" >idProduct
   echo "${UAC2_BCD_USB:-0x0200}" >bcdUSB
   echo "${UAC2_BCD_DEVICE:-0x0100}" >bcdDevice
+  echo 0xEF >bDeviceClass
+  echo 0x02 >bDeviceSubClass
+  echo 0x01 >bDeviceProtocol
 
   mkdir -p strings/0x409
   echo "${UAC2_MANUFACTURER:-Raspberry Pi}" >strings/0x409/manufacturer
@@ -141,13 +144,18 @@ configure_gadget() {
   echo "${UAC2_C_SRATE:-44100}" >"functions/$FUNC/c_srate"
   echo "${UAC2_C_SSIZE:-4}" >"functions/$FUNC/c_ssize"
   echo "${UAC2_C_VOLUME_PRESENT:-1}" >"functions/$FUNC/c_volume_present"
-  echo "${UAC2_C_VOLUME_MIN:--10240}" >"functions/$FUNC/c_volume_min"
-  echo "${UAC2_C_VOLUME_MAX:-0}" >"functions/$FUNC/c_volume_max"
-  echo "${UAC2_C_VOLUME_RES:-256}" >"functions/$FUNC/c_volume_res"
+  echo "${UAC2_C_VOLUME_MIN:--15360}" >"functions/$FUNC/c_volume_min" # -60dB
+  echo "${UAC2_C_VOLUME_MAX:-0}" >"functions/$FUNC/c_volume_max" # 0dB
+  echo "${UAC2_C_VOLUME_RES:-128}" >"functions/$FUNC/c_volume_res"
+  echo "0x0603" >"functions/$FUNC/c_terminal_type"
+  echo "${UAC2_C_CHMASK:-0x0}" >"functions/$FUNC/c_chmask"
+  echo "0x0301" >"functions/$FUNC/p_terminal_type"
+
+  echo "${UAC2_P_CHMASK:-0x0}" >"functions/$FUNC/p_chmask"
 
   mkdir -p configs/c.1/strings/0x409
   echo "${UAC2_CONFIGURATION:-UAC2 Capture}" >configs/c.1/strings/0x409/configuration
-  echo "${UAC2_MAXPOWER:-250}" >configs/c.1/MaxPower
+  echo "${UAC2_MAXPOWER:-1000}" >configs/c.1/MaxPower
 
   rm -f configs/c.1/"$FUNC"
   ls -l configs/c.1
