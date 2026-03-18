@@ -1,6 +1,6 @@
-# Raspberry Pi: USB Gadget Audio In -> Dual USB DAC Out (Main + Sub) with CamillaDSP
+# Raspberry Pi: USB Gadget Audio In → Dual USB DAC Out (Main + Sub) with CamillaDSP
 
-This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (capture device) to receive audio from a host over USB, then uses **CamillaDSP** to process and split that audio and play it out through **two separate USB DACs**:
+This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (capture device) to receive audio from a host over USB, then uses **CamillaDSP** to process/split that audio and play it out through **two separate USB DACs**:
 
 - USB DAC A: main speakers (stereo)
 - USB DAC B: subwoofer (typically mono duplicated to L/R)
@@ -15,10 +15,11 @@ This repo configures a Raspberry Pi as a **USB Audio Class 2 (UAC2) gadget** (ca
         +-----------------------------+
                       |
                       v
-        +--------------------------------------------------+
-        |                    CamillaDSP                    |
-        | /home/xxie/camilladsp/configs/active_config.yml |
-        +--------------------------------------------------+
+        +-----------------------------+
+        |         CamillaDSP          |
+        |  /etc/camilladsp/config.yml |
+        |  split: mains + sub         |
+        +-----------------------------+
                       |
                       v
         +-----------------------------+
@@ -43,7 +44,7 @@ Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 - `usb_gadget.sh`: Creates/configures the UAC2 gadget via `configfs` and binds it to a UDC.
 - `usb-gadget-uac2.conf.example`: Example overrides for the gadget (sample rate/format/channel mask, etc).
 - `systemd/usb-gadget-uac2.service`: Systemd oneshot unit template to configure the gadget at boot.
-- `dsp.yml.example`: Example CamillaDSP pipeline/config. Copy it into `/home/xxie/camilladsp/configs/active_config.yml` (or another underscore-only filename) and let the statefile select it.
+- `dsp.yml.example`: Example CamillaDSP pipeline/config (install to `/etc/camilladsp/config.yml` and customize).
 - `gen_asound_multi.py`: Generates an ALSA virtual output device by combining two stereo USB DACs into one 4-channel device (`convert4`) for CamillaDSP.
 
 ## Prerequisites
@@ -82,7 +83,7 @@ sudo vi /etc/usb-gadget-uac2.conf
 ```
 
 Important settings:
-- `UAC2_C_SRATE`: Must match what your audio pipeline expects (example `/home/xxie/camilladsp/configs/active_config.yml` uses `48000`).
+- `UAC2_C_SRATE`: Must match what your audio pipeline expects (example `/etc/camilladsp/config.yml` uses `48000`).
 - `UAC2_C_SSIZE`: Sample size in bytes (`2`=16-bit, `3`=24-bit packed, `4`=32-bit).
 - `UAC2_C_CHMASK`: Channel mask (`0x3` = stereo).
 - `UAC2_UDC` (optional): Pin the UDC name instead of “first found”.
@@ -120,22 +121,16 @@ After reboot:
 aplay -L | grep convert4
 ```
 
-### 5) Configure CamillaDSP to use the web UI managed config
+### 5) Configure CamillaDSP to use your config and wait for the gadget
 
-Use the standard CamillaDSP plus CamillaGUI layout: systemd starts CamillaDSP with the statefile and wait mode, while the active config lives under `/home/xxie/camilladsp/configs/`.
+This is done with a systemd drop-in override for `camilladsp.service`.
 
-First, install the example config into the GUI config directory and adjust it:
+First, install the example config to a system-wide location and adjust it (recommended):
 
 ```bash
-install -d /home/xxie/camilladsp/configs
-cp ./dsp.yml.example /home/xxie/camilladsp/configs/active_config.yml
-vi /home/xxie/camilladsp/configs/active_config.yml
-```
-
-Then make sure `/home/xxie/camilladsp/statefile.yml` points at that file:
-
-```yaml
-config_path: /home/xxie/camilladsp/configs/active_config.yml
+sudo install -d /etc/camilladsp
+sudo install -m 0644 ./dsp.yml.example /etc/camilladsp/config.yml
+sudo vi /etc/camilladsp/config.yml
 ```
 
 1. Create/edit the drop-in:
@@ -144,7 +139,7 @@ config_path: /home/xxie/camilladsp/configs/active_config.yml
 sudo SYSTEMD_EDITOR=vi systemctl edit camilladsp.service
 ```
 
-2. Add this override:
+2. Add this (update the config path if needed):
 
 ```ini
 [Unit]
@@ -154,7 +149,7 @@ Requires=usb-gadget-uac2.service
 [Service]
 WorkingDirectory=/home/xxie
 ExecStart=
-ExecStart=camilladsp -s camilladsp/statefile.yml -w -g-40 -o camilladsp/camilladsp.log -p 1234 -a 0.0.0.0
+ExecStart=camilladsp -s camilladsp/statefile.yml -g-40 -o camilladsp/camilladsp.log -p 1234 /etc/camilladsp/config.yml
 ```
 
 3. Reload and restart:
@@ -166,10 +161,9 @@ systemctl status --no-pager -l camilladsp.service
 ```
 
 Notes:
-- The web UI only persists configs inside `/home/xxie/camilladsp/configs`.
-- Use underscore-only config filenames such as `active_config.yml`; avoid spaces in names.
-- With `-w`, CamillaDSP reads the selected config path from `/home/xxie/camilladsp/statefile.yml` instead of taking a positional config file argument.
-- If your service runs as a different user than `xxie`, update `WorkingDirectory=` and the paths accordingly.
+- Do **not** use `~` in systemd paths; use absolute paths like `/etc/camilladsp/config.yml`.
+- Do **not** add `-c` unless you want “check config and exit”. The config file is the positional `CONFIGFILE` argument.
+ - If your service runs as a different user than `xxie`, update `WorkingDirectory=` and the config path accordingly.
 
 ## Create the 2-DAC playback device (`convert4`)
 
@@ -198,15 +192,15 @@ speaker-test -D convert4 -c 4 -t sine
 How it works:
 - It lists playback devices from `aplay -l`, asks you to pick two card numbers, then probes each with `aplay --dump-hw-params`.
 - It chooses a common sample rate/format (prefers `48000`), then maps channels `0-1` to DAC A and `2-3` to DAC B.
-- In `/home/xxie/camilladsp/configs/active_config.yml`, set playback device to `convert4` (already shown in this repo).
+- In `/etc/camilladsp/config.yml`, set playback device to `convert4` (already shown in this repo).
 
 ## Main/Sub Routing in CamillaDSP
 
 The usual channel convention with `convert4` is:
-- Channels `0-1` -> USB DAC A (main L/R)
-- Channels `2-3` -> USB DAC B (sub; often mono duplicated to L/R)
+- Channels `0-1` → USB DAC A (main L/R)
+- Channels `2-3` → USB DAC B (sub; often mono duplicated to L/R)
 
-In `/home/xxie/camilladsp/configs/active_config.yml` you typically:
+In `/etc/camilladsp/config.yml` you typically:
 - Apply a high-pass to the main channels (0-1).
 - Create a mono sum from L/R, apply a low-pass, then duplicate it to channels 2 and 3.
 
@@ -224,29 +218,19 @@ Two common causes:
 
 1) Bad `ExecStart` override
 - Symptom: usage errors or `--check`/`-c` complaints.
-- Fix: in the drop-in, clear the old start line with `ExecStart=` and start CamillaDSP with `-s camilladsp/statefile.yml -w`.
+- Fix: in the drop-in, clear the old start line with `ExecStart=` and set a single correct `ExecStart=... CONFIGFILE`.
 
 2) Sample-rate mismatch (very common)
 - Symptom: ALSA error like `snd_pcm_hw_params_set_rate ... Invalid argument (22)` then CamillaDSP exits.
 - Fix: ensure these all match:
   - Gadget capture rate: `UAC2_C_SRATE` in `/etc/usb-gadget-uac2.conf`
-  - CamillaDSP rate: `devices.samplerate` in `/home/xxie/camilladsp/configs/active_config.yml`
+  - CamillaDSP rate: `devices.samplerate` in `/etc/camilladsp/config.yml`
   - `convert4` rate: the pinned `rate` in `/etc/asound.conf` (generated by `gen_asound_multi.py`)
-  - Example: if you want `48000`, set `UAC2_C_SRATE=48000`, ensure `/home/xxie/camilladsp/configs/active_config.yml` uses `48000`, regenerate `/etc/asound.conf` if needed, then:
+  - Example: if you want `48000`, set `UAC2_C_SRATE=48000`, ensure `/etc/camilladsp/config.yml` uses `48000`, regenerate `/etc/asound.conf` if needed, then:
     ```bash
     sudo systemctl restart usb-gadget-uac2.service
     sudo systemctl restart camilladsp.service
     ```
-
-### Web UI changes do not persist
-
-If CamillaGUI logs an error like this, your service is still using the wrong config path:
-
-```text
-The config file path /etc/camilladsp/config.yml is not in the config dir /home/xxie/camilladsp/configs
-```
-
-Fix the service override so CamillaDSP starts with `-w` and let `/home/xxie/camilladsp/statefile.yml` point to a file inside `/home/xxie/camilladsp/configs/`.
 
 ### Gadget service fails
 
@@ -263,7 +247,7 @@ If `/sys/class/udc` is empty, the kernel doesn’t see a UDC (common if using th
 On the new Pi:
 1. Copy this repo.
 2. Repeat the **Quick Start** steps.
-3. Update `/etc/usb-gadget-uac2.conf` and your active CamillaDSP config under `/home/xxie/camilladsp/configs/`.
+3. Update `/etc/usb-gadget-uac2.conf` and your CamillaDSP config path.
 4. Reboot, then verify:
    - `systemctl status usb-gadget-uac2.service camilladsp.service`
    - `cat /sys/kernel/config/usb_gadget/uac2g/UDC`
