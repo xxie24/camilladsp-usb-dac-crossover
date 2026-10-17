@@ -44,6 +44,8 @@ Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 - `usb-gadget-uac2.conf.example`: Example overrides for the gadget (sample rate/format/channel mask, etc).
 - `systemd/usb-gadget-uac2.service`: Systemd oneshot unit template to configure the gadget at boot.
 - `dsp.yml.example`: Example CamillaDSP pipeline/config. Copy it into `/home/xxie/camilladsp/configs/active_config.yml` (or another underscore-only filename) and let the statefile select it.
+- `mains_only.yml`: Stereo mains without subwoofer (same PEQ stack, crossover removed). Copy into `/home/xxie/camilladsp/configs/`.
+- `dsp-switch`: CLI to swap the live config instantly via websocket (`SetConfigFilePath` + `Reload`), no restart. Install with `sudo install -m 0755 dsp-switch /usr/local/bin/dsp-switch`, then `dsp-switch status|with-sub|mains-only`.
 - `gen_asound_multi.py`: Generates an ALSA virtual output device by combining two stereo USB DACs into one 4-channel device (`convert4`) for CamillaDSP.
 
 ## Prerequisites
@@ -209,6 +211,23 @@ The usual channel convention with `convert4` is:
 In `/home/xxie/camilladsp/configs/active_config.yml` you typically:
 - Apply a high-pass to the main channels (0-1).
 - Create a mono sum from L/R, apply a low-pass, then duplicate it to channels 2 and 3.
+
+## Switching configs quickly (`dsp-switch`)
+
+The live config is selected by `/home/xxie/camilladsp/statefile.yml` (`config_path:`)
+from files in `/home/xxie/camilladsp/configs/`. (`/etc/camilladsp/config.yml` is a
+stale leftover and is not used — the service runs with `-s camilladsp/statefile.yml -w`.)
+
+```bash
+dsp-switch status       # show active config + processing state
+dsp-switch with-sub     # active_config.yml (mains + subwoofer)
+dsp-switch mains-only   # mains_only.yml (stereo mains, sub silent)
+```
+
+The switch goes over the websocket API (`SetConfigFilePath` + `Reload` on port
+1234), so it applies instantly without restarting the service, and the statefile
+is updated so the choice survives reboots. If the websocket is unreachable it
+falls back to `systemctl restart camilladsp`.
 
 ## Common Pitfalls / Debugging
 

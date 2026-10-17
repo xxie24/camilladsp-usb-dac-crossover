@@ -1,0 +1,110 @@
+title: Mains only (no sub)
+description: Stereo mains without subwoofer. Same capture and PEQ stack as
+  active_config.yml, crossover (mixer, highpass/lowpass, delay, subsonic)
+  removed, mains run full-range to convert4 ch 0-1 (DAC B silent).
+
+devices:
+  samplerate: 48000
+  chunksize: 1024
+  queuelimit: 2
+
+  capture:
+    type: Alsa
+    device: "hw:CARD=UAC2Gadget,DEV=0"
+    channels: 2
+    format: S32LE
+    link_volume_control: "PCM Capture Volume"
+    link_mute_control: "PCM Capture Switch"
+
+  playback:
+    type: Alsa
+    device: "convert4"
+    channels: 2
+    format: S16LE
+
+filters:
+  house_curve:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 114
+      gain: -4
+      q: 2.0
+
+  rew_100hz_xover_filter_1:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 28.75
+      gain: -10.3
+      q: 4.804
+
+  rew_100hz_xover_filter_2:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 64.5
+      gain: -3.5
+      q: 18.351
+
+  rew_100hz_xover_filter_3:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 72.9
+      gain: -5.9
+      q: 10.454
+
+  rew_100hz_xover_filter_4:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 85.1
+      gain: -8.8
+      q: 5.682
+
+  rew_100hz_xover_filter_5:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 153
+      gain: -3.5
+      q: 6.645
+
+  rew_100hz_xover_filter_6:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 175.5
+      gain: -3.5
+      q: 9.009
+
+  rew_100hz_xover_filter_7:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 210
+      gain: -3.5
+      q: 4.829
+
+  rew_100hz_xover_filter_8:
+    type: Biquad
+    parameters:
+      type: Peaking
+      freq: 373
+      gain: -4.3
+      q: 2.603
+
+pipeline:
+  - type: Filter
+    channels: [0, 1]
+    names:
+      - house_curve
+      - rew_100hz_xover_filter_1
+      - rew_100hz_xover_filter_2
+      - rew_100hz_xover_filter_3
+      - rew_100hz_xover_filter_4
+      - rew_100hz_xover_filter_5
+      - rew_100hz_xover_filter_6
+      - rew_100hz_xover_filter_7
+      - rew_100hz_xover_filter_8
