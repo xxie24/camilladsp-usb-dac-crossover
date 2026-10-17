@@ -10,6 +10,7 @@ Usage:
   dsp-switch status              show active config + processing state
   dsp-switch with-sub            2.1: mains + subwoofer (active_config.yml)
   dsp-switch mains-only|no-sub   stereo mains only (mains_only.yml)
+  dsp-switch bypass              no EQ, no crossover (bypass.yml)
   dsp-switch <name>              any other file in ~/camilladsp/configs/
 """
 
@@ -31,6 +32,7 @@ PROFILES = {
     "with-sub": "active_config.yml",
     "mains-only": "mains_only.yml",
     "no-sub": "mains_only.yml",
+    "bypass": "bypass.yml",
 }
 
 
@@ -199,7 +201,8 @@ def do_status():
     print(f"active config: {path}")
     print(f"state: {state if ok2 else '?'}")
     print(f"profiles: with-sub -> {PROFILES['with-sub']}, "
-          f"mains-only -> {PROFILES['mains-only']}")
+          f"mains-only -> {PROFILES['mains-only']}, "
+          f"bypass -> {PROFILES['bypass']}")
 
 
 def wait_for_state(want_running=True, tries=16, delay=0.5):

@@ -1,0 +1,23 @@
+title: Bypass (no EQ, no crossover)
+description: Pure passthrough for A/B comparison. Stereo capture goes straight
+  to convert4 ch 0-1 (DAC A) with no filters, no mixer, no crossover.
+  DAC B (sub) is silent.
+
+devices:
+  samplerate: 48000
+  chunksize: 1024
+  queuelimit: 2
+
+  capture:
+    type: Alsa
+    device: "hw:CARD=UAC2Gadget,DEV=0"
+    channels: 2
+    format: S32LE
+    link_volume_control: "PCM Capture Volume"
+    link_mute_control: "PCM Capture Switch"
+
+  playback:
+    type: Alsa
+    device: "convert4"
+    channels: 2
+    format: S16LE

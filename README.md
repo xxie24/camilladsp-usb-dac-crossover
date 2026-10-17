@@ -45,6 +45,7 @@ Tested on Raspberry Pi OS (Debian-based) with `libcomposite` + `configfs`.
 - `systemd/usb-gadget-uac2.service`: Systemd oneshot unit template to configure the gadget at boot.
 - `dsp.yml.example`: Example CamillaDSP pipeline/config. Copy it into `/home/xxie/camilladsp/configs/active_config.yml` (or another underscore-only filename) and let the statefile select it.
 - `mains_only.yml`: Stereo mains without subwoofer (same PEQ stack, crossover removed). Copy into `/home/xxie/camilladsp/configs/`.
+- `bypass.yml`: Pure passthrough, no EQ and no crossover (A/B reference). Copy into `/home/xxie/camilladsp/configs/`.
 - `dsp-switch`: CLI to swap the live config instantly via websocket (`SetConfigFilePath` + `Reload`), no restart. Install with `sudo install -m 0755 dsp-switch /usr/local/bin/dsp-switch`, then `dsp-switch status|with-sub|mains-only`.
 - `gen_asound_multi.py`: Generates an ALSA virtual output device by combining two stereo USB DACs into one 4-channel device (`convert4`) for CamillaDSP.
 
@@ -222,6 +223,7 @@ stale leftover and is not used — the service runs with `-s camilladsp/statefil
 dsp-switch status       # show active config + processing state
 dsp-switch with-sub     # active_config.yml (mains + subwoofer)
 dsp-switch mains-only   # mains_only.yml (stereo mains, sub silent)
+dsp-switch bypass       # bypass.yml (no EQ, no crossover)
 ```
 
 The switch goes over the websocket API (`SetConfigFilePath` + `Reload` on port
